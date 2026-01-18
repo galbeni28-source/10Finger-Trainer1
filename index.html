@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Global 10-Finger Academy (inkl. Russisch)</title>
+<style>
+  :root { 
+    --primary: #3498db; --secondary: #2c3e50; --bg: #f4f7f6;
+    --f1: #ff7675; --f2: #fab1a0; --f3: #ffeaa7; --f4: #55efc4; 
+    --f5: #81ecec; --f6: #74b9ff; --f7: #a29bfe; --f8: #fd79a8;
+  }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+  .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+  .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+  .tab-btn { padding: 12px 25px; border: none; border-radius: 10px 10px 0 0; cursor: pointer; font-weight: bold; background: #e0e0e0; }
+  .tab-btn.active { background: var(--primary); color: white; }
+  .content-section { display: none; }
+  .content-section.active { display: block; }
+  .stats-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: var(--secondary); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; text-align: center; }
+  .stat-label { font-size: 0.8rem; text-transform: uppercase; opacity: 0.8; }
+  .stat-value { font-size: 1.8rem; font-weight: bold; display: block; }
+  #display { background: #1e1e1e; color: #fff; padding: 30px; border-radius: 15px; font-size: 26px; font-family: 'Courier New', monospace; height: 180px; overflow-y: auto; line-height: 1.6; margin-bottom: 20px; border: 3px solid #333; }
+  .char.typed { color: #888; } 
+  .char.current { border-bottom: 4px solid var(--primary); background: #333; }
+  .char.eval-correct { color: #2ecc71 !important; }
+  .char.eval-error { color: #e74c3c !important; text-decoration: underline; }
+  .keyboard { background: #2d3436; padding: 20px; border-radius: 15px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 30px; }
+  .row { display: flex; justify-content: center; gap: 6px; }
+  .key { width: 46px; height: 46px; background: #fff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border-bottom: 4px solid #bdc3c7; }
+  .key.active { transform: translateY(4px); border-bottom: none; background: var(--primary) !important; color: white; }
+  .f1 { border-color: var(--f1); } .f2 { border-color: var(--f2); } .f3 { border-color: var(--f3); } .f4 { border-color: var(--f4); }
+  .f5 { border-color: var(--f5); } .f6 { border-color: var(--f6); } .f7 { border-color: var(--f7); } .f8 { border-color: var(--f8); }
+  #resultModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 40px; border-radius: 20px; box-shadow: 0 0 100px rgba(0,0,0,0.5); z-index: 100; text-align: center; width: 450px; }
+  #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 90; }
+  #input-trigger { position: absolute; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body onclick="document.getElementById('input-trigger').focus()">
+
+<div id="overlay"></div>
+<div id="resultModal">
+  <h2>Training beendet!</h2>
+  <div style="font-size: 1.1rem; margin: 20px 0; text-align: left;">
+    <p>Geschwindigkeit: <strong id="resWpm" style="color:var(--primary)"></strong> WPM</p>
+    <p>Fehler: <strong id="resErrs" style="color:var(--error)"></strong></p>
+    <p>Genauigkeit: <strong id="resAcc"></strong>%</p>
+  </div>
+  <button onclick="closeModal()" style="padding: 12px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">SCHLIESSEN</button>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showTab('trainer')">Übungs-Trainer</button>
+    <button class="tab-btn" onclick="showTab('learn')">Lern-Modus</button>
+  </div>
+
+  <div id="trainer" class="content-section active">
+    <div class="stats-bar">
+      <div><span class="stat-label">WPM</span><span class="stat-value" id="wpm">0</span></div>
+      <div><span class="stat-label">Zeit</span><span class="stat-value" id="clock">--</span></div>
+      <div><span class="stat-label">Sprache</span><span class="stat-value" id="langDisplay">-</span></div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; background: #eee; padding: 15px; border-radius: 12px;">
+      <select id="selLang" onchange="initGame()">
+        <option value="de">Deutsch</option><option value="ru">Russisch (Кириллица)</option><option value="hu">Ungarisch</option>
+        <option value="en">Englisch</option><option value="tr">Türkisch</option><option value="fr">Französisch</option>
+      </select>
+      <select id="selLen" onchange="initGame()"></select>
+      <select id="selTime" onchange="initGame()"></select>
+      <button onclick="initGame()" style="background:var(--secondary); color:white; border:none; padding:8px 15px; border-radius: 5px; cursor:pointer; margin-left:auto;">Neuer Text</button>
+    </div>
+
+    <div id="display"></div>
+    <input type="text" id="input-trigger" autocomplete="off">
+    <div class="keyboard" id="kb"></div>
+  </div>
+
+  <div id="learn" class="content-section">
+    <h2>Grundstellung & Finger</h2>
+    
+    <div id="fingerMappingDisplay" style="background:#f9f9f9; padding:20px; border-radius:15px; border:1px solid #ddd;"></div>
+  </div>
+</div>
+
+<script>
+const words = {
+  de: ["Haus", "Garten", "Schule", "Lernen", "Tastatur", "Computer", "Mensch", "Arbeit", "Leben", "Zeit"],
+  ru: ["дом", "сад", "школа", "учеба", "клавиатура", "компьютер", "человек", "работа", "жизнь", "время", "солнце", "книга", "язык"],
+  hu: ["ház", "kert", "iskola", "tanulás", "billentyűzet", "számítógép", "ember", "munka", "élet", "idő"],
+  en: ["house", "garden", "school", "learning", "keyboard", "computer", "people", "work", "life", "time"]
+};
+
+const layouts = {
+  de: [["^","1","2","3","4","5","6","7","8","9","0","ß"],["Q","W","E","R","T","Z","U","I","O","P","Ü"],["A","S","D","F","G","H","J","K","L","Ö","Ä"],["<","Y","X","C","V","B","N","M",",",".","-"]],
+  ru: [["Ё","1","2","3","4","5","6","7","8","9","0","-"],["Й","Ц","У","К","Е","Н","Г","Ш","Щ","З","Х","Ъ"],["Ф","Ы","В","А","П","Р","О","Л","Д","Ж","Э"],["Я","Ч","С","М","И","Т","Ь","Б","Ю","."]],
+  hu: [["0","1","2","3","4","5","6","7","8","9","Ö","Ü","Ó"],["Q","W","E","R","T","Z","U","I","O","P","Ő","Ú"],["A","S","D","F","G","H","J","K","L","É","Á","Ű"],["Í","Y","X","C","V","B","N","M",",",".","-"]]
+};
+
+const fingerMap = {
+  // Lateinisch
+  "Q":"f1","A":"f1","Y":"f1","Z":"f1","W":"f2","S":"f2","X":"f2","E":"f3","D":"f3","C":"f3","R":"f4","F":"f4","V":"f4","T":"f4","G":"f4","B":"f4",
+  "U":"f5","J":"f5","M":"f5","Y":"f5","H":"f5","N":"f5","I":"f6","K":"f6",",":"f6","O":"f7","L":"f7",".":"f7","P":"f8","Ö":"f8","Ä":"f8","Ü":"f8",
+  // Kyrillisch
+  "Й":"f1","Ф":"f1","Я":"f1","Ц":"f2","Ы":"f2","Ч":"f2","У":"f3","В":"f3","С":"f3","К":"f4","А":"f4","М":"f4","Е":"f4","П":"f4","И":"f4",
+  "Н":"f5","Р":"f5","Т":"f5","Г":"f5","О":"f5","Ь":"f5","Ш":"f6","Л":"f6","Б":"f6","Щ":"f7","Д":"f7","Ю":"f7","З":"f8","Ж":"f8","Э":"f8","Х":"f8","Ъ":"f8"
+};
+
+let currentText = "", idx = 0, timerActive = false, startTime = null, clockInt = null, userInput = "";
+
+const slen = document.getElementById('selLen');
+for(let i=200; i<=2000; i+=100) { let o=document.createElement('option'); o.value=i; o.text=i+" Zeichen"; slen.add(o); }
+const stime = document.getElementById('selTime');
+for(let i=1; i<=20; i++) { let o=document.createElement('option'); o.value=i*60; o.text=i+" Min."; stime.add(o); }
+
+function showTab(id) {
+  document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(id === 'learn') updateFingerList();
+}
+
+function initGame() {
+  const lang = document.getElementById('selLang').value;
+  const len = parseInt(document.getElementById('selLen').value);
+  currentText = "";
+  const pool = words[lang] || words['de'];
+  while(currentText.length < len) { currentText += pool[Math.floor(Math.random()*pool.length)] + " "; }
+  currentText = currentText.trim().substring(0, len);
+  idx = 0; userInput = ""; timerActive = false;
+  clearInterval(clockInt);
+  document.getElementById('clock').innerText = document.getElementById('selTime').value;
+  document.getElementById('wpm').innerText = "0";
+  document.getElementById('langDisplay').innerText = lang.toUpperCase();
+  document.getElementById('input-trigger').value = "";
+  document.getElementById('input-trigger').disabled = false;
+  renderKeyboard(lang);
+  renderDisplay();
+}
+
+function renderKeyboard(lang) {
+  const kb = document.getElementById('kb'); kb.innerHTML = "";
+  const layout = layouts[lang] || layouts['de'];
+  layout.forEach(row => {
+    const rDiv = document.createElement('div'); rDiv.className = "row";
+    row.forEach(k => {
+      const kd = document.createElement('div'); kd.className = `key ${fingerMap[k.toUpperCase()] || ''}`;
+      kd.id = `k-${k.toUpperCase()}`; kd.innerText = k; rDiv.appendChild(kd);
+    });
+    kb.appendChild(rDiv);
+  });
+  const sRow = document.createElement('div'); sRow.className = "row";
+  sRow.innerHTML = `<div class="key" id="k- " style="width:380px">LEERTASTE</div>`;
+  kb.appendChild(sRow);
+}
+
+function renderDisplay() {
+  const d = document.getElementById('display');
+  d.innerHTML = currentText.split('').map((c, i) => `<span class="char ${i===0?'current':''}">${c}</span>`).join('');
+  highlightKey();
+}
+
+function highlightKey() {
+  document.querySelectorAll('.key').forEach(k => k.classList.remove('active'));
+  const next = currentText[idx]?.toUpperCase();
+  const kElement = document.getElementById(`k-${next === ' ' ? ' ' : next}`);
+  if(kElement) kElement.classList.add('active');
+}
+
+document.getElementById('input-trigger').addEventListener('input', (e) => {
+  if(!timerActive) { timerActive = true; startTime = new Date(); startClock(); }
+  userInput = e.target.value;
+  const chars = document.querySelectorAll('.char');
+  idx = userInput.length;
+  chars.forEach((c, i) => {
+    c.classList.remove('current', 'typed');
+    if(i < idx) c.classList.add('typed');
+    if(i === idx) c.classList.add('current');
+  });
+  if(idx >= currentText.length) finishGame();
+  else { chars[idx].scrollIntoView({ block: 'center' }); highlightKey(); }
+  updateWPMDisplay();
+});
+
+function startClock() {
+  let time = parseInt(document.getElementById('selTime').value);
+  clockInt = setInterval(() => {
+    time--; document.getElementById('clock').innerText = time;
+    if(time <= 0) finishGame();
+  }, 1000);
+}
+
+function updateWPMDisplay() {
+  const elapsed = (new Date() - startTime) / 60000;
+  const wpm = Math.round((idx / 5) / elapsed) || 0;
+  document.getElementById('wpm').innerText = wpm;
+}
+
+function finishGame() {
+  clearInterval(clockInt);
+  document.getElementById('input-trigger').disabled = true;
+  let errors = 0;
+  const chars = document.querySelectorAll('.char');
+  for(let i=0; i < idx; i++) {
+    if(userInput[i] === currentText[i]) chars[i].classList.add('eval-correct');
+    else { chars[i].classList.add('eval-error'); errors++; }
+  }
+  document.getElementById('resWpm').innerText = document.getElementById('wpm').innerText;
+  document.getElementById('resErrs').innerText = errors;
+  document.getElementById('resAcc').innerText = Math.round(((idx - errors) / idx) * 100) || 0;
+  document.getElementById('overlay').style.display = 'block';
+  document.getElementById('resultModal').style.display = 'block';
+}
+
+function closeModal() {
+  document.getElementById('overlay').style.display = 'none';
+  document.getElementById('resultModal').style.display = 'none';
+}
+
+function updateFingerList() {
+  const lang = document.getElementById('selLang').value;
+  const list = document.getElementById('fingerMappingDisplay');
+  const fNames = ["Kleinfinger L.", "Ringfinger L.", "Mittelfinger L.", "Zeigefinger L.", "Zeigefinger R.", "Mittelfinger R.", "Ringfinger R.", "Kleinfinger R."];
+  list.innerHTML = "<h4>Finger-Tasten für " + lang.toUpperCase() + ":</h4>";
+  for(let i=1; i<=8; i++) {
+    const keys = Object.keys(fingerMap).filter(k => fingerMap[k] === 'f'+i);
+    list.innerHTML += `<p><strong>${fNames[i-1]}:</strong> ${keys.join(', ')}</p>`;
+  }
+}
+initGame();
+</script>
+</body>
+</html>
